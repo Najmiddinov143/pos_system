@@ -10,6 +10,21 @@ from PyQt6.QtCore import Qt
 from views.login_window import LoginWindow
 from telegram.error import BadRequest, TelegramError
 
+# ===== PostgreSQL ulanish =====
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", 
+    "postgresql://postgres:MoyUstaxona2026!pos@db.zbfbdsyykyvptltjjifx.supabase.co:5432/postgres"
+)
+
+def get_db():
+    """PostgreSQL ma'lumotlar bazasiga ulanish"""
+    try:
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        return conn
+    except Exception as e:
+        print(f"❌ PostgreSQL ga ulanishda xatolik: {e}")
+        return None
+
 # ===== YO'LNI ANIQLASH =====
 def get_base_path():
     """Ishga tushirilgan papkani aniqlash (exe va py uchun)"""
@@ -19,7 +34,7 @@ def get_base_path():
         return os.path.dirname(os.path.abspath(__file__))
 
 def get_db_path():
-    """Ma'lumotlar bazasi yo'lini qaytaradi"""
+    """SQLite ma'lumotlar bazasi yo'lini qaytaradi (faqat backup uchun)"""
     base_path = get_base_path()
     db_path = os.path.join(base_path, "database", "pos.db")
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
@@ -28,342 +43,263 @@ def get_db_path():
 
 # ===== MA'LUMOTLAR BAZASINI TEKSHIRISH =====
 def check_and_fix_database():
-    """Ma'lumotlar bazasini tekshirish va yangilash"""
-    db_path = get_db_path()
-    
-    if not os.path.exists(db_path):
-        print("⚠️ Ma'lumotlar bazasi topilmadi! Yangi yaratilmoqda...")
-        try:
-            from migrate_db import create_database
-            create_database()
-        except:
-            print("❌ migrate_db topilmadi! Yangi baza yaratilmoqda...")
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            
-            # Users
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT UNIQUE NOT NULL,
-                    password_hash TEXT NOT NULL,
-                    role TEXT NOT NULL CHECK(role IN ('admin', 'cashier')),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Products
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS products (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    category TEXT,
-                    cost_price REAL NOT NULL,
-                    sell_price REAL NOT NULL,
-                    quantity REAL NOT NULL DEFAULT 0,
-                    unit TEXT DEFAULT 'dona',
-                    min_quantity REAL DEFAULT 5,
-                    note TEXT,
-                    image_path TEXT,
-                    barcode TEXT,
-                    supplier TEXT,
-                    is_active INTEGER DEFAULT 1,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Sales
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS sales (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    total_amount REAL NOT NULL,
-                    total_profit REAL NOT NULL,
-                    discount REAL DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    user_id INTEGER,
-                    car_number TEXT,
-                    car_model TEXT,
-                    phone_number TEXT,
-                    current_km REAL DEFAULT 0,
-                    next_km REAL DEFAULT 0,
-                    oil_change_date TEXT,
-                    next_oil_change_date TEXT,
-                    notification_date TEXT,
-                    is_notified INTEGER DEFAULT 0,
-                    payment_type TEXT DEFAULT 'Naxt',
-                    bonus_amount REAL DEFAULT 0,
-                    discount_amount REAL DEFAULT 0,
-                    is_debt INTEGER DEFAULT 0,
-                    debt_paid INTEGER DEFAULT 0,
-                    customer_name TEXT,
-                    customer_phone TEXT
-                )
-            ''')
-            
-            # Sale items
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS sale_items (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    sale_id INTEGER NOT NULL,
-                    product_id INTEGER NOT NULL,
-                    quantity REAL NOT NULL,
-                    sell_price REAL NOT NULL,
-                    cost_price REAL NOT NULL,
-                    subtotal REAL NOT NULL
-                )
-            ''')
-            
-            # Expenses
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS expenses (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    amount REAL NOT NULL,
-                    category TEXT NOT NULL,
-                    description TEXT,
-                    payment_type TEXT DEFAULT 'Naxt' CHECK(payment_type IN ('Naxt', 'Plastik')),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    user_id INTEGER
-                )
-            ''')
-            
-            # Inventory logs
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS inventory_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    product_id INTEGER NOT NULL,
-                    action TEXT NOT NULL,
-                    quantity REAL NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    user_id INTEGER
-                )
-            ''')
-            
-            # Employees
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS employees (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    full_name TEXT NOT NULL,
-                    phone TEXT,
-                    position TEXT NOT NULL,
-                    salary REAL DEFAULT 0,
-                    hire_date TEXT,
-                    is_active INTEGER DEFAULT 1,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Backup history
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS backup_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    backup_date TEXT NOT NULL,
-                    file_name TEXT NOT NULL,
-                    file_size INTEGER,
-                    created_by INTEGER,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Notifications
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS notifications (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    title TEXT NOT NULL,
-                    message TEXT NOT NULL,
-                    type TEXT NOT NULL,
-                    is_read INTEGER DEFAULT 0,
-                    user_id INTEGER,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Shop settings
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS shop_settings (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    shop_name TEXT NOT NULL DEFAULT 'Moy almashtirish',
-                    address TEXT,
-                    phone TEXT,
-                    logo_path TEXT,
-                    receipt_footer TEXT,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Attendance
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS attendance (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    employee_id INTEGER NOT NULL,
-                    check_in TEXT,
-                    check_out TEXT,
-                    date TEXT NOT NULL
-                )
-            ''')
-            
-            # Settings
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS settings (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    key TEXT UNIQUE NOT NULL,
-                    value TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Stock purchases
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS stock_purchases (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    product_id INTEGER NOT NULL,
-                    product_name TEXT,
-                    quantity REAL NOT NULL,
-                    unit_cost REAL NOT NULL,
-                    total_cost REAL NOT NULL,
-                    payment_type TEXT DEFAULT 'Naxt' CHECK(payment_type IN ('Naxt', 'Nasiya')),
-                    purchase_date TEXT NOT NULL,
-                    due_date TEXT,
-                    is_paid INTEGER DEFAULT 0,
-                    paid_date TEXT,
-                    remaining_debt REAL DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Firms
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS firms (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    phone TEXT,
-                    address TEXT,
-                    total_debt REAL DEFAULT 0,
-                    note TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Firm debts
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS firm_debts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    firm_id INTEGER NOT NULL,
-                    firm_name TEXT,
-                    amount REAL NOT NULL,
-                    description TEXT,
-                    debt_type TEXT DEFAULT 'qarz' CHECK(debt_type IN ('qarz', 'to_lov')),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            import bcrypt
-            admin_pwd = bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-            cursor.execute('INSERT OR IGNORE INTO users (username, password_hash, role) VALUES (?, ?, ?)',
-                           ('admin', admin_pwd, 'admin'))
-            
-            cashier_pwd = bcrypt.hashpw('cashier123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-            cursor.execute('INSERT OR IGNORE INTO users (username, password_hash, role) VALUES (?, ?, ?)',
-                           ('cashier', cashier_pwd, 'cashier'))
-            
-            cursor.execute('''
-                INSERT OR IGNORE INTO shop_settings (shop_name, address, phone, receipt_footer)
-                VALUES (?, ?, ?, ?)
-            ''', ('Moy almashtirish', 'Toshkent sh., ...', '+998 99 123 45 67', 'Rahmat! Xush kelibsiz!'))
-            
-            conn.commit()
-            conn.close()
-            print("✅ Ma'lumotlar bazasi yaratildi!")
-        return
-    
-    # Mavjud bazani tekshirish
+    """PostgreSQL ma'lumotlar bazasini tekshirish va jadvallarni yaratish"""
     try:
-        conn = sqlite3.connect(db_path)
+        conn = get_db()
+        if conn is None:
+            print("❌ PostgreSQL ga ulanish mumkin emas!")
+            return
+        
         cursor = conn.cursor()
         
-        # stock_purchases jadvalidagi ustunlarni tekshirish
-        cursor.execute("PRAGMA table_info(stock_purchases)")
-        columns = [col[1] for col in cursor.fetchall()]
+        # Users table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL CHECK(role IN ('admin', 'cashier')),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
         
-        if 'remaining_debt' not in columns:
-            try:
-                cursor.execute("ALTER TABLE stock_purchases ADD COLUMN remaining_debt REAL DEFAULT 0")
-                print("✅ remaining_debt ustuni qo'shildi!")
-            except Exception as e:
-                print(f"⚠️ remaining_debt qo'shishda xatolik: {e}")
+        # Products table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS products (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                category TEXT,
+                cost_price REAL NOT NULL,
+                sell_price REAL NOT NULL,
+                quantity REAL NOT NULL DEFAULT 0,
+                unit TEXT DEFAULT 'dona',
+                min_quantity REAL DEFAULT 5,
+                note TEXT,
+                image_path TEXT,
+                barcode TEXT,
+                supplier TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
         
-        if 'paid_date' not in columns:
-            try:
-                cursor.execute("ALTER TABLE stock_purchases ADD COLUMN paid_date TEXT")
-                print("✅ paid_date ustuni qo'shildi!")
-            except Exception as e:
-                print(f"⚠️ paid_date qo'shishda xatolik: {e}")
+        # Sales table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sales (
+                id SERIAL PRIMARY KEY,
+                total_amount REAL NOT NULL,
+                total_profit REAL NOT NULL,
+                discount REAL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                user_id INTEGER,
+                car_number TEXT,
+                car_model TEXT,
+                phone_number TEXT,
+                current_km REAL DEFAULT 0,
+                next_km REAL DEFAULT 0,
+                oil_change_date TEXT,
+                next_oil_change_date TEXT,
+                notification_date TEXT,
+                is_notified INTEGER DEFAULT 0,
+                payment_type TEXT DEFAULT 'Naxt',
+                bonus_amount REAL DEFAULT 0,
+                discount_amount REAL DEFAULT 0,
+                is_debt INTEGER DEFAULT 0,
+                debt_paid INTEGER DEFAULT 0,
+                customer_name TEXT,
+                customer_phone TEXT
+            )
+        ''')
         
-        # products jadvalida is_active ustuni
-        cursor.execute("PRAGMA table_info(products)")
-        product_columns = [col[1] for col in cursor.fetchall()]
-        if 'is_active' not in product_columns:
-            try:
-                cursor.execute("ALTER TABLE products ADD COLUMN is_active INTEGER DEFAULT 1")
-                print("✅ is_active ustuni qo'shildi!")
-            except Exception as e:
-                print(f"⚠️ is_active qo'shishda xatolik: {e}")
+        # Sale items table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sale_items (
+                id SERIAL PRIMARY KEY,
+                sale_id INTEGER NOT NULL,
+                product_id INTEGER NOT NULL,
+                quantity REAL NOT NULL,
+                sell_price REAL NOT NULL,
+                cost_price REAL NOT NULL,
+                subtotal REAL NOT NULL
+            )
+        ''')
         
-        # firms jadvali
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='firms'")
+        # Expenses table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS expenses (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                amount REAL NOT NULL,
+                category TEXT NOT NULL,
+                description TEXT,
+                payment_type TEXT DEFAULT 'Naxt' CHECK(payment_type IN ('Naxt', 'Plastik')),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                user_id INTEGER
+            )
+        ''')
+        
+        # Inventory logs table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS inventory_logs (
+                id SERIAL PRIMARY KEY,
+                product_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                quantity REAL NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                user_id INTEGER
+            )
+        ''')
+        
+        # Employees table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS employees (
+                id SERIAL PRIMARY KEY,
+                full_name TEXT NOT NULL,
+                phone TEXT,
+                position TEXT NOT NULL,
+                salary REAL DEFAULT 0,
+                hire_date TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Backup history table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS backup_history (
+                id SERIAL PRIMARY KEY,
+                backup_date TEXT NOT NULL,
+                file_name TEXT NOT NULL,
+                file_size INTEGER,
+                created_by INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Notifications table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS notifications (
+                id SERIAL PRIMARY KEY,
+                title TEXT NOT NULL,
+                message TEXT NOT NULL,
+                type TEXT NOT NULL,
+                is_read INTEGER DEFAULT 0,
+                user_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Shop settings table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS shop_settings (
+                id SERIAL PRIMARY KEY,
+                shop_name TEXT NOT NULL DEFAULT 'Moy almashtirish',
+                address TEXT,
+                phone TEXT,
+                logo_path TEXT,
+                receipt_footer TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Attendance table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS attendance (
+                id SERIAL PRIMARY KEY,
+                employee_id INTEGER NOT NULL,
+                check_in TEXT,
+                check_out TEXT,
+                date TEXT NOT NULL
+            )
+        ''')
+        
+        # Settings table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS settings (
+                id SERIAL PRIMARY KEY,
+                key TEXT UNIQUE NOT NULL,
+                value TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Stock purchases table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS stock_purchases (
+                id SERIAL PRIMARY KEY,
+                product_id INTEGER NOT NULL,
+                product_name TEXT,
+                quantity REAL NOT NULL,
+                unit_cost REAL NOT NULL,
+                total_cost REAL NOT NULL,
+                payment_type TEXT DEFAULT 'Naxt' CHECK(payment_type IN ('Naxt', 'Nasiya')),
+                purchase_date TEXT NOT NULL,
+                due_date TEXT,
+                is_paid INTEGER DEFAULT 0,
+                paid_date TEXT,
+                remaining_debt REAL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Firms table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS firms (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                phone TEXT,
+                address TEXT,
+                total_debt REAL DEFAULT 0,
+                note TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Firm debts table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS firm_debts (
+                id SERIAL PRIMARY KEY,
+                firm_id INTEGER NOT NULL,
+                firm_name TEXT,
+                amount REAL NOT NULL,
+                description TEXT,
+                debt_type TEXT DEFAULT 'qarz' CHECK(debt_type IN ('qarz', 'to_lov')),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Admin user yaratish (agar mavjud bo'lmasa)
+        cursor.execute("SELECT * FROM users WHERE username = 'admin'")
+        if not cursor.fetchone():
+            import bcrypt
+            admin_pwd = bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            cursor.execute(
+                'INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)',
+                ('admin', admin_pwd, 'admin')
+            )
+        
+        # Cashier user yaratish (agar mavjud bo'lmasa)
+        cursor.execute("SELECT * FROM users WHERE username = 'cashier'")
+        if not cursor.fetchone():
+            import bcrypt
+            cashier_pwd = bcrypt.hashpw('cashier123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            cursor.execute(
+                'INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)',
+                ('cashier', cashier_pwd, 'cashier')
+            )
+        
+        # Shop settings (agar mavjud bo'lmasa)
+        cursor.execute("SELECT * FROM shop_settings")
         if not cursor.fetchone():
             cursor.execute('''
-                CREATE TABLE IF NOT EXISTS firms (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    phone TEXT,
-                    address TEXT,
-                    total_debt REAL DEFAULT 0,
-                    note TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            print("✅ firms table yaratildi!")
-        
-        # firm_debts jadvali
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='firm_debts'")
-        if not cursor.fetchone():
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS firm_debts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    firm_id INTEGER NOT NULL,
-                    firm_name TEXT,
-                    amount REAL NOT NULL,
-                    description TEXT,
-                    debt_type TEXT DEFAULT 'qarz' CHECK(debt_type IN ('qarz', 'to_lov')),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            print("✅ firm_debts table yaratildi!")
-        
-        # firm_debts ga firm_name ustuni
-        cursor.execute("PRAGMA table_info(firm_debts)")
-        debt_columns = [col[1] for col in cursor.fetchall()]
-        if 'firm_name' not in debt_columns:
-            try:
-                cursor.execute("ALTER TABLE firm_debts ADD COLUMN firm_name TEXT")
-                print("✅ firm_debts ga firm_name ustuni qo'shildi!")
-            except Exception as e:
-                print(f"⚠️ firm_name qo'shishda xatolik: {e}")
-        
-        # expenses jadvaliga payment_type ustuni (Naxt/Plastik - qaysi kassadan yechilgani)
-        cursor.execute("PRAGMA table_info(expenses)")
-        expense_columns = [col[1] for col in cursor.fetchall()]
-        if 'payment_type' not in expense_columns:
-            try:
-                cursor.execute("ALTER TABLE expenses ADD COLUMN payment_type TEXT DEFAULT 'Naxt'")
-                print("✅ expenses ga payment_type ustuni qo'shildi!")
-            except Exception as e:
-                print(f"⚠️ payment_type qo'shishda xatolik: {e}")
+                INSERT INTO shop_settings (shop_name, address, phone, receipt_footer)
+                VALUES (%s, %s, %s, %s)
+            ''', ('Moy almashtirish', 'Toshkent sh., ...', '+998 99 123 45 67', 'Rahmat! Xush kelibsiz!'))
         
         conn.commit()
+        cursor.close()
         conn.close()
-        print("✅ Ma'lumotlar bazasi tekshirildi!")
+        print("✅ PostgreSQL ma'lumotlar bazasi tekshirildi va jadvallar yaratildi!")
         
     except Exception as e:
         print(f"⚠️ Ma'lumotlar bazasini tekshirishda xatolik: {e}")
@@ -379,11 +315,6 @@ except ImportError:
     print("⚠️ python-telegram-bot o'rnatilmagan! Bot ishlamaydi.")
 
 BOT_TOKEN = "8520222825:AAE30r62L_RqRyymemJCifN_rEfULC2e2Ig"
-
-def get_db():
-    conn = sqlite3.connect(get_db_path())
-    conn.row_factory = sqlite3.Row
-    return conn
 
 def get_main_menu():
     keyboard = [
@@ -507,16 +438,20 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     try:
         conn = get_db()
-        try:
-            products = conn.execute(
-                "SELECT * FROM products WHERE name LIKE ? AND is_active = 1 ORDER BY name LIMIT 50",
-                (f"%{search_text}%",)
-            ).fetchall()
-        except sqlite3.OperationalError:
-            products = conn.execute(
-                "SELECT * FROM products WHERE name LIKE ? ORDER BY name LIMIT 50",
-                (f"%{search_text}%",)
-            ).fetchall()
+        if conn is None:
+            await update.message.reply_text(
+                "❌ Ma'lumotlar bazasiga ulanishda xatolik!",
+                reply_markup=get_search_again_menu()
+            )
+            return
+        
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM products WHERE name ILIKE %s AND is_active = 1 ORDER BY name LIMIT 50",
+            (f"%{search_text}%",)
+        )
+        products = cursor.fetchall()
+        cursor.close()
         conn.close()
         
         if not products:
@@ -561,7 +496,14 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def show_inventory(query):
     try:
         conn = get_db()
-        products = conn.execute('SELECT * FROM products WHERE is_active = 1 ORDER BY name').fetchall()
+        if conn is None:
+            await query.edit_message_text("❌ Ma'lumotlar bazasiga ulanishda xatolik!", reply_markup=get_back_menu())
+            return
+        
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM products WHERE is_active = 1 ORDER BY name')
+        products = cursor.fetchall()
+        cursor.close()
         conn.close()
         
         if not products:
@@ -643,21 +585,29 @@ async def show_today_sales(query):
         today = datetime.now().strftime('%Y-%m-%d')
         
         conn = get_db()
-        sales = conn.execute('''
+        if conn is None:
+            await query.edit_message_text("❌ Ma'lumotlar bazasiga ulanishda xatolik!", reply_markup=get_back_menu())
+            return
+        
+        cursor = conn.cursor()
+        cursor.execute('''
             SELECT 
                 COALESCE(SUM(total_amount), 0) as total,
                 COALESCE(COUNT(*), 0) as count,
                 COALESCE(SUM(total_profit), 0) as profit
             FROM sales 
-            WHERE DATE(created_at) = ?
-        ''', (today,)).fetchone()
+            WHERE DATE(created_at) = %s
+        ''', (today,))
+        sales = cursor.fetchone()
         
-        last_sales = conn.execute('''
+        cursor.execute('''
             SELECT * FROM sales 
-            WHERE DATE(created_at) = ?
+            WHERE DATE(created_at) = %s
             ORDER BY created_at DESC
             LIMIT 5
-        ''', (today,)).fetchall()
+        ''', (today,))
+        last_sales = cursor.fetchall()
+        cursor.close()
         conn.close()
         
         text = f"📊 *BUGUNGI SAVDO*\n"
@@ -672,7 +622,7 @@ async def show_today_sales(query):
             text += "─" * 20 + "\n"
             for s in last_sales:
                 text += f"#{s['id']} "
-                text += f"🕐 {s['created_at'][11:16]} "
+                text += f"🕐 {s['created_at'].strftime('%H:%M') if s['created_at'] else ''} "
                 text += f"💰 {s['total_amount']:,.0f} so'm"
                 if s['car_number']:
                     text += f"\n   🚗 {s['car_number']}"
@@ -689,11 +639,18 @@ async def show_today_sales(query):
 async def show_low_stock(query):
     try:
         conn = get_db()
-        products = conn.execute('''
+        if conn is None:
+            await query.edit_message_text("❌ Ma'lumotlar bazasiga ulanishda xatolik!", reply_markup=get_back_menu())
+            return
+        
+        cursor = conn.cursor()
+        cursor.execute('''
             SELECT * FROM products 
             WHERE quantity <= min_quantity AND is_active = 1
             ORDER BY quantity ASC
-        ''').fetchall()
+        ''')
+        products = cursor.fetchall()
+        cursor.close()
         conn.close()
         
         if not products:
@@ -762,15 +719,22 @@ async def show_queue(query):
         end_date_str = end_date.strftime("%Y-%m-%d")
         
         conn = get_db()
-        queue = conn.execute('''
+        if conn is None:
+            await query.edit_message_text("❌ Ma'lumotlar bazasiga ulanishda xatolik!", reply_markup=get_back_menu())
+            return
+        
+        cursor = conn.cursor()
+        cursor.execute('''
             SELECT s.*, u.username 
             FROM sales s
             LEFT JOIN users u ON s.user_id = u.id
-            WHERE DATE(s.next_oil_change_date) BETWEEN DATE(?) AND DATE(?)
+            WHERE DATE(s.next_oil_change_date) BETWEEN %s AND %s
             AND s.is_notified = 0
             ORDER BY s.next_oil_change_date ASC, s.created_at ASC
             LIMIT 20
-        ''', (start_date_str, end_date_str)).fetchall()
+        ''', (start_date_str, end_date_str))
+        queue = cursor.fetchall()
+        cursor.close()
         conn.close()
         
         if not queue:
@@ -846,30 +810,37 @@ async def password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_admin_stats(update):
     try:
         conn = get_db()
+        if conn is None:
+            await update.message.reply_text("❌ Ma'lumotlar bazasiga ulanishda xatolik!")
+            return
         
-        stats = conn.execute('''
+        cursor = conn.cursor()
+        cursor.execute('''
             SELECT 
                 (SELECT COUNT(*) FROM products WHERE is_active = 1) as products,
                 (SELECT COALESCE(SUM(cost_price * quantity), 0) FROM products WHERE is_active = 1) as total_cost,
                 (SELECT COALESCE(SUM(sell_price * quantity), 0) FROM products WHERE is_active = 1) as total_value,
                 (SELECT COALESCE(SUM(total_profit), 0) FROM sales) as total_profit,
                 (SELECT COALESCE(COUNT(*), 0) FROM sales) as total_sales
-        ''').fetchone()
+        ''')
+        stats = cursor.fetchone()
         
         today = datetime.now().strftime('%Y-%m-%d')
-        today_stats = conn.execute('''
+        cursor.execute('''
             SELECT 
                 COALESCE(SUM(total_amount), 0) as total,
                 COALESCE(COUNT(*), 0) as count
-            FROM sales WHERE DATE(created_at) = ?
-        ''', (today,)).fetchone()
+            FROM sales WHERE DATE(created_at) = %s
+        ''', (today,))
+        today_stats = cursor.fetchone()
         
-        sales = conn.execute('''
+        cursor.execute('''
             SELECT * FROM sales 
             ORDER BY created_at DESC 
             LIMIT 10
-        ''').fetchall()
-        
+        ''')
+        sales = cursor.fetchall()
+        cursor.close()
         conn.close()
         
         text = "🔐 *ADMIN PANEL*\n"
@@ -890,7 +861,7 @@ async def show_admin_stats(update):
             text += "📋 *OXIRGI SOTUVLAR*\n"
             text += "─" * 20 + "\n"
             for s in sales:
-                text += f"#{s['id']} | {s['created_at'][:16]} | "
+                text += f"#{s['id']} | {s['created_at'].strftime('%Y-%m-%d %H:%M') if s['created_at'] else ''} | "
                 text += f"{s['total_amount']:,.0f} so'm"
                 if s['car_number']:
                     text += f" | 🚗 {s['car_number']}"
@@ -908,11 +879,18 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def sales_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         conn = get_db()
-        sales = conn.execute('''
+        if conn is None:
+            await update.message.reply_text("❌ Ma'lumotlar bazasiga ulanishda xatolik!")
+            return
+        
+        cursor = conn.cursor()
+        cursor.execute('''
             SELECT * FROM sales 
             ORDER BY created_at DESC 
             LIMIT 20
-        ''').fetchall()
+        ''')
+        sales = cursor.fetchall()
+        cursor.close()
         conn.close()
         
         if not sales:
@@ -924,7 +902,7 @@ async def sales_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         for s in sales:
             text += f"#{s['id']} "
-            text += f"🕐 {s['created_at'][:16]}\n"
+            text += f"🕐 {s['created_at'].strftime('%Y-%m-%d %H:%M') if s['created_at'] else ''}\n"
             text += f"💰 {s['total_amount']:,.0f} so'm"
             if s['car_number']:
                 text += f" | 🚗 {s['car_number']}"
