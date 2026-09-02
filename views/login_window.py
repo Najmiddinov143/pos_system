@@ -1,35 +1,28 @@
-# views/login_window.py
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 from utils.styles import DARK_STYLE
-from controllers.auth_controller import AuthController
+from client.api_client import api
 
 
 class LoginWindow(QMainWindow):
-    """
-    Responsive login oynasi:
-    - Oyna o'lchami qattiq belgilanmagan (setFixedSize yo'q).
-    - Fon butun oynani qoplaydi, "karta" esa markazda va maksimal
-      kenglik bilan cheklangan -> full-screenda ham chiroyli ko'rinadi.
-    - Barcha kengayish stretch/QSizePolicy orqali boshqariladi.
-    """
-
     def __init__(self):
         super().__init__()
-        self.auth_controller = AuthController()
         self.setup_ui()
         self.setStyleSheet(DARK_STYLE)
         self._center_on_screen()
+        self.token = None
+        self.role = None
 
-    # ---------------------------------------------------------
     def setup_ui(self):
         self.setWindowTitle("POS Tizimi - Kirish")
-
         self.setMinimumSize(480, 620)
         self.resize(1100, 760)
 
-        # ===== Fon (butun oynani qoplaydi) =====
         background = QWidget()
         background.setObjectName("loginBackground")
         background.setStyleSheet("""
@@ -47,7 +40,6 @@ class LoginWindow(QMainWindow):
         center_col = QVBoxLayout()
         center_col.addStretch(1)
 
-        # ===== Login kartasi =====
         card = QWidget()
         card.setObjectName("loginCard")
         card.setMinimumWidth(380)
@@ -172,7 +164,6 @@ class LoginWindow(QMainWindow):
         self.error_label.setWordWrap(True)
         card_layout.addWidget(self.error_label)
 
-        # Kartani gorizontal markazlash
         card_row = QHBoxLayout()
         card_row.addStretch(1)
         card_row.addWidget(card)
@@ -184,13 +175,10 @@ class LoginWindow(QMainWindow):
         outer_layout.addLayout(center_col, 0)
         outer_layout.addStretch(1)
 
-        # Enter tugmasi bilan navigatsiya
         self.username_input.returnPressed.connect(lambda: self.password_input.setFocus())
         self.password_input.returnPressed.connect(self.login)
-
         self.username_input.setFocus()
 
-    # ---------------------------------------------------------
     def _center_on_screen(self):
         screen = QGuiApplication.primaryScreen()
         if not screen:
@@ -200,7 +188,6 @@ class LoginWindow(QMainWindow):
         y = geo.y() + (geo.height() - self.height()) // 2
         self.move(max(x, 0), max(y, 0))
 
-    # ---------------------------------------------------------
     def login(self):
         username = self.username_input.text().strip()
         password = self.password_input.text()
@@ -209,17 +196,30 @@ class LoginWindow(QMainWindow):
             self.error_label.setText("Iltimos, barcha maydonlarni to'ldiring!")
             return
 
-        user = self.auth_controller.login(username, password)
-        if user:
-            self.error_label.setText("")
-            self.open_main_window(user)
-        else:
-            self.error_label.setText("❌ Noto'g'ri foydalanuvchi nomi yoki parol!")
+        self.error_label.setText("⏳ Kuting...")
+        self.error_label.setStyleSheet("font-size: 13px; color: #f1c40f; background: transparent;")
+        
+        try:
+            result = api.login(username, password)
+            
+            if result and "token" in result:
+                self.token = result.get("token")
+                self.role = result.get("role", "cashier")
+                self.error_label.setText("✅ Kirish muvaffaqiyatli!")
+                self.error_label.setStyleSheet("font-size: 13px; color: #2ecc71; background: transparent;")
+                
+                from views.main_window import MainWindow
+                self.main_window = MainWindow(result)
+                self.main_window.show()
+                self.close()
+            else:
+                self.error_label.setText("❌ Noto'g'ri foydalanuvchi nomi yoki parol!")
+                self.error_label.setStyleSheet("font-size: 13px; color: #ff5c5c; background: transparent;")
+                self.password_input.clear()
+                self.password_input.setFocus()
+                
+        except Exception as e:
+            self.error_label.setText(f"❌ Xatolik: {str(e)}")
+            self.error_label.setStyleSheet("font-size: 13px; color: #ff5c5c; background: transparent;")
             self.password_input.clear()
             self.password_input.setFocus()
-
-    def open_main_window(self, user):
-        self.close()
-        from views.main_window import MainWindow
-        self.main_window = MainWindow(user)
-        self.main_window.show()
