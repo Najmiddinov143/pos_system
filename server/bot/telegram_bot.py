@@ -1,4 +1,3 @@
-# telegram_bot.py - PostgreSQL versiyasi
 import os
 import sys
 import logging
@@ -123,7 +122,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     products = db.execute_query(
         "SELECT * FROM products WHERE name LIKE %s AND is_active = %s ORDER BY name LIMIT 50",
-        (f"%{search_text}%", 1)
+        (f"%{search_text}%", True)
     )
     
     if not products:
@@ -150,7 +149,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 # ============================================================
 
 async def show_inventory(query):
-    products = db.execute_query("SELECT * FROM products WHERE is_active = %s ORDER BY name", (1,))
+    products = db.execute_query("SELECT * FROM products WHERE is_active = %s ORDER BY name", (True,))
     
     if not products:
         await query.edit_message_text("📦 Ombor bo'sh!", reply_markup=get_back_menu())
@@ -196,7 +195,7 @@ async def show_today_sales(query):
 async def show_low_stock(query):
     products = db.execute_query(
         "SELECT * FROM products WHERE quantity <= min_quantity AND is_active = %s ORDER BY quantity ASC",
-        (1,)
+        (True,)
     )
     
     if not products:
@@ -224,7 +223,7 @@ async def show_queue(query):
            WHERE DATE(next_oil_change_date) BETWEEN %s AND %s
            AND is_notified = %s
            ORDER BY next_oil_change_date ASC LIMIT 20""",
-        (today, end_date, 0)
+        (today, end_date, False)
     )
     
     if not queue:
@@ -270,9 +269,9 @@ async def password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_admin_stats(update):
     stats = db.execute_one(
         """SELECT 
-            (SELECT COUNT(*) FROM products WHERE is_active = 1) as products,
-            (SELECT COALESCE(SUM(cost_price * quantity), 0) FROM products WHERE is_active = 1) as total_cost,
-            (SELECT COALESCE(SUM(sell_price * quantity), 0) FROM products WHERE is_active = 1) as total_value,
+            (SELECT COUNT(*) FROM products WHERE is_active = true) as products,
+            (SELECT COALESCE(SUM(cost_price * quantity), 0) FROM products WHERE is_active = true) as total_cost,
+            (SELECT COALESCE(SUM(sell_price * quantity), 0) FROM products WHERE is_active = true) as total_value,
             (SELECT COALESCE(SUM(total_profit), 0) FROM sales) as total_profit,
             (SELECT COALESCE(COUNT(*), 0) FROM sales) as total_sales"""
     )
