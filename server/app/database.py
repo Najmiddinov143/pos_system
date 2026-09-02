@@ -8,19 +8,14 @@ class Database:
         self.pool = None
 
     def connect(self):
-        # Railway PostgreSQL manzili
+        # Railway da DATABASE_URL dan ulanish
         database_url = os.environ.get("DATABASE_URL")
         
         if not database_url:
-            # Agar DATABASE_URL bo'lmasa, alohida parametrlardan yig'amiz
-            host = os.environ.get("PGHOST", "localhost")
-            port = os.environ.get("PGPORT", "5432")
-            dbname = os.environ.get("PGDATABASE", "pos_db")
-            user = os.environ.get("PGUSER", "postgres")
-            password = os.environ.get("PGPASSWORD", "postgres123")
-            database_url = f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
+            print("❌ DATABASE_URL topilmadi!")
+            exit(1)
         
-        print(f"🔍 Ulanish: {database_url.replace(password, '****') if password else database_url}")
+        print(f"🔍 Ulanish: {database_url[:50]}...")
         
         self.pool = psycopg2.pool.SimpleConnectionPool(
             1, 10, dsn=database_url
