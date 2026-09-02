@@ -234,7 +234,8 @@ async def show_queue(query):
     
     text = "🚗 *NAVBATDAGI MIJOZLAR*\n" + "═" * 30 + "\n\n"
     for i, q in enumerate(queue, 1):
-        text += f"*{i}. 🚗 {q[8] or 'Noma'lum'}*\n"
+        car_number = q[8] if q[8] else "Noma'lum"
+        text += f"*{i}. 🚗 {car_number}*\n"
         text += f"   📅 Keyingi moy: {q[12]}\n"
         text += f"   💰 Summa: {q[1]:,.0f} so'm\n\n"
     
