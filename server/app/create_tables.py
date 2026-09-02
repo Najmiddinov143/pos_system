@@ -1,12 +1,16 @@
+import os
 import psycopg2
 
-pg_conn = psycopg2.connect(
-    host="localhost",
-    port="5432",
-    database="pos_db",
-    user="postgres",
-    password="postgres123"
-)
+# Railway da DATABASE_URL dan ulanish
+database_url = os.environ.get("DATABASE_URL")
+
+if not database_url:
+    # Agar DATABASE_URL bo'lmasa, localhost ga ulanish
+    database_url = f"postgresql://{os.getenv('DB_USER', 'postgres')}:{os.getenv('DB_PASSWORD', 'postgres123')}@{os.getenv('DB_HOST', 'localhost')}:{os.getenv('DB_PORT', '5432')}/{os.getenv('DB_NAME', 'pos_db')}"
+
+print(f"🔍 Ulanish: {database_url[:30]}...")
+
+pg_conn = psycopg2.connect(dsn=database_url)
 pg_cursor = pg_conn.cursor()
 
 print("🚀 JADVALLAR YARATILMOQDA...")
@@ -77,115 +81,6 @@ CREATE TABLE IF NOT EXISTS sale_items (
     sell_price NUMERIC(12,2) NOT NULL,
     cost_price NUMERIC(12,2) NOT NULL,
     subtotal NUMERIC(12,2) NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS expenses (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    amount NUMERIC(12,2) NOT NULL,
-    category VARCHAR(100),
-    description TEXT,
-    payment_type VARCHAR(20),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    user_id INTEGER
-);
-
-CREATE TABLE IF NOT EXISTS inventory_logs (
-    id SERIAL PRIMARY KEY,
-    product_id INTEGER,
-    action VARCHAR(50),
-    quantity NUMERIC(12,3),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    user_id INTEGER
-);
-
-CREATE TABLE IF NOT EXISTS employees (
-    id SERIAL PRIMARY KEY,
-    full_name VARCHAR(255) NOT NULL,
-    phone VARCHAR(20),
-    position VARCHAR(100),
-    salary NUMERIC(12,2),
-    hire_date DATE,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS attendance (
-    id SERIAL PRIMARY KEY,
-    employee_id INTEGER,
-    check_in TIMESTAMP,
-    check_out TIMESTAMP,
-    date DATE
-);
-
-CREATE TABLE IF NOT EXISTS notifications (
-    id SERIAL PRIMARY KEY,
-    title VARCHAR(255),
-    message TEXT,
-    type VARCHAR(50),
-    is_read BOOLEAN DEFAULT FALSE,
-    user_id INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS shop_settings (
-    id SERIAL PRIMARY KEY,
-    shop_name VARCHAR(255),
-    address TEXT,
-    phone VARCHAR(20),
-    logo_path VARCHAR(255),
-    receipt_footer TEXT,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS firms (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255),
-    phone VARCHAR(20),
-    address TEXT,
-    total_debt NUMERIC(12,2) DEFAULT 0,
-    note TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS firm_debts (
-    id SERIAL PRIMARY KEY,
-    firm_id INTEGER,
-    firm_name VARCHAR(255),
-    amount NUMERIC(12,2),
-    description TEXT,
-    debt_type VARCHAR(50),
-    is_paid BOOLEAN DEFAULT FALSE,
-    paid_date DATE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS stock_purchases (
-    id SERIAL PRIMARY KEY,
-    product_id INTEGER,
-    product_name VARCHAR(255),
-    quantity NUMERIC(12,3),
-    unit_cost NUMERIC(12,2),
-    total_cost NUMERIC(12,2),
-    dollar_cost NUMERIC(12,2),
-    dollar_price NUMERIC(12,2),
-    exchange_rate NUMERIC(12,4),
-    payment_type VARCHAR(20),
-    purchase_date DATE,
-    due_date DATE,
-    is_paid BOOLEAN DEFAULT FALSE,
-    paid_date DATE,
-    remaining_debt NUMERIC(12,2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    firm_id INTEGER
-);
-
-CREATE TABLE IF NOT EXISTS cash_incomes (
-    id SERIAL PRIMARY KEY,
-    amount NUMERIC(12,2),
-    note TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    user_id INTEGER
 );
 """)
 
