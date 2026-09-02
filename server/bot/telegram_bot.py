@@ -1,4 +1,3 @@
-# telegram_bot.py - PostgreSQL versiyasi
 import os
 import sys
 import logging
@@ -137,7 +136,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     text = f"🔍 *QIDIRUV NATIJASI:* \"{search_text}\"\n" + "═" * 30 + "\n\n"
     for p in products:
-        status = "⚠️" if p[6] <= p[7] else "✅"  # quantity <= min_quantity
+        status = "⚠️" if p[6] <= p[7] else "✅"
         text += f"{status} *{p[1]}*\n"
         text += f"   📊 Qoldiq: {p[6]} {p[8]}\n"
         text += f"   💰 Narx: {p[4]:,.0f} so'm\n\n"
