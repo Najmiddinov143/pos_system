@@ -8,25 +8,23 @@ class Database:
         self.pool = None
 
     def connect(self):
-        # MUHIM: Railway da DATABASE_URL ni ishlatish kerak!
+        # Railway PostgreSQL manzili
         database_url = os.environ.get("DATABASE_URL")
         
-        print(f"🔍 DATABASE_URL mavjud: {database_url is not None}")
-        if database_url:
-            print("✅ DATABASE_URL dan ulanish...")
-            self.pool = psycopg2.pool.SimpleConnectionPool(
-                1, 10, dsn=database_url
-            )
-        else:
-            print("⚠️ Localhost ga ulanish...")
-            self.pool = psycopg2.pool.SimpleConnectionPool(
-                1, 10,
-                host=os.getenv("DB_HOST", "localhost"),
-                port=os.getenv("DB_PORT", "5432"),
-                database=os.getenv("DB_NAME", "pos_db"),
-                user=os.getenv("DB_USER", "postgres"),
-                password=os.getenv("DB_PASSWORD", "postgres123")
-            )
+        if not database_url:
+            # Agar DATABASE_URL bo'lmasa, alohida parametrlardan yig'amiz
+            host = os.environ.get("PGHOST", "localhost")
+            port = os.environ.get("PGPORT", "5432")
+            dbname = os.environ.get("PGDATABASE", "pos_db")
+            user = os.environ.get("PGUSER", "postgres")
+            password = os.environ.get("PGPASSWORD", "postgres123")
+            database_url = f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
+        
+        print(f"🔍 Ulanish: {database_url.replace(password, '****') if password else database_url}")
+        
+        self.pool = psycopg2.pool.SimpleConnectionPool(
+            1, 10, dsn=database_url
+        )
         return self
 
     @contextmanager
