@@ -7,4 +7,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["uvicorn", "server.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# create_tables.py ni ishga tushirib, keyin serverni boshlash
+CMD ["sh", "-c", "python server/app/create_tables.py && uvicorn server.app.main:app --host 0.0.0.0 --port 8000"]
