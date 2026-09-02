@@ -14,8 +14,8 @@ from telegram.request import HTTPXRequest
 from telegram.error import BadRequest, TelegramError
 from server.app.database import db
 
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "0"))
+TOKEN = os.getenv("8804348618:AAGChnE_w9jusklKSj9UmotvE8cnxH2BYjk")
+ADMIN_CHAT_ID = int(os.getenv("1851119080", "0"))
 
 logging.basicConfig(level=logging.INFO)
 
