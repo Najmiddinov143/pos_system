@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter
 from datetime import datetime
 from ..database import db
@@ -31,20 +30,12 @@ async def get_dashboard():
         "SELECT COUNT(*) FROM products WHERE quantity <= min_quantity"
     )
     
-    # Bugungi qoldiq
-    today_balance = db.execute_one(
-        "SELECT COALESCE(SUM(cash_amount), 0) - COALESCE(SUM(expenses.amount), 0) "
-        "FROM sales LEFT JOIN expenses ON DATE(expenses.created_at) = DATE(sales.created_at) "
-        "WHERE DATE(sales.created_at) = %s",
-        (today,)
-    )
-    
     return {
         "today_sales": today_sales[0] if today_sales else 0,
         "today_profit": today_profit[0] if today_profit else 0,
         "total_products": total_products[0] if total_products else 0,
         "low_stock": low_stock[0] if low_stock else 0,
-        "today_balance": today_balance[0] if today_balance else 0,
+        "today_balance": today_sales[0] if today_sales else 0,
         "total_expense": 0,
         "bonus_total": 0,
         "net_profit": today_profit[0] if today_profit else 0,
