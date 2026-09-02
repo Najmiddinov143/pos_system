@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import db
-from .routes import auth, reports
+from .routes import auth, reports, products
 
 app = FastAPI(title="POS System API")
 
@@ -17,6 +17,7 @@ app.add_middleware(
 # Routers
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
+app.include_router(products.router, prefix="/api/products", tags=["Products"])
 
 @app.on_event("startup")
 async def startup():
