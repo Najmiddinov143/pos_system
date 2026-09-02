@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import db
@@ -20,7 +21,8 @@ app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 @app.on_event("startup")
 async def startup():
     print("✅ PostgreSQL connected")
-    print("✅ Server running on http://0.0.0.0:8000")
+    port = os.getenv("PORT", "8000")
+    print(f"✅ Server running on port {port}")
 
 @app.get("/")
 async def root():
